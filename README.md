@@ -7,7 +7,7 @@ It is organized by capability instead of growing a generic `common` or `utils` p
 ## Included capabilities
 
 - `python_stdx.iterables`, `mappings`, and `text`: focused, dependency-free helpers that complement the standard library.
-- `python_stdx.asyncio.EventLoopWatchdog`: observes event-loop progress from an independent OS thread and reports stalls and recovery.
+- `python_stdx.asyncio`: manages async stream lifecycles and observes event-loop stalls from an independent OS thread.
 - `python_stdx.redis.RedisConnector`: creates one native async client for standalone, Sentinel, or Cluster Redis.
 - `python_stdx.cache`: tagged invalidation and coordinated loading with in-process and Redis backends.
 - `python_stdx.database.Database`: owns a synchronous SQLAlchemy engine and explicit session/transaction lifecycles.
@@ -43,6 +43,19 @@ watchdog.start()
 watchdog.pulse()
 
 watchdog.stop()
+```
+
+## Async stream lifecycle
+
+Use `scoped_stream` when an asynchronous iterator owns resources that must be closed deterministically. The default
+policy closes the stream without consuming remaining items; `DRAIN` consumes them after a normal scope exit. Exceptions
+and cancellation always close the stream without draining it.
+
+```python
+from python_stdx.asyncio import StreamExitPolicy, scoped_stream
+
+async with scoped_stream(source, exit_policy=StreamExitPolicy.DRAIN) as stream:
+    item = await anext(stream)
 ```
 
 ## Redis client
