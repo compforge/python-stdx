@@ -8,6 +8,8 @@ It is organized by capability instead of growing a generic `common` or `utils` p
 
 - `python_stdx.asyncio.EventLoopWatchdog`: observes event-loop progress from an independent OS thread and reports stalls and recovery.
 - `python_stdx.redis.RedisConnector`: creates one native async client for standalone, Sentinel, or Cluster Redis.
+- `python_stdx.database.Database`: owns a synchronous SQLAlchemy engine and explicit session/transaction lifecycles.
+- `python_stdx.scheduler.TaskScheduler`: runs scheduled, one-shot, and triggered tasks through a pluggable distributed store.
 
 ## Install
 
@@ -58,6 +60,60 @@ redis = await connector.connect()
 await redis.ping()
 await connector.aclose()
 ```
+
+## Database lifecycle
+
+The database package is backed by SQLAlchemy and remains optional:
+
+```bash
+python -m pip install "python-stdx[database]"
+```
+
+```python
+from python_stdx.database import Database
+
+database = Database(
+    "postgresql+psycopg://user:password@localhost/app",
+    pool_size=20,
+    max_overflow=10,
+    pool_timeout=30,
+)
+
+with database.transaction() as session:
+    session.execute(...)
+```
+
+See [the database lifecycle contract](docs/database.md) for session ownership and extension boundaries.
+
+## Task scheduler
+
+Install the scheduler with the storage capabilities you use:
+
+```bash
+python -m pip install "python-stdx[scheduler,database]"
+# or: python -m pip install "python-stdx[scheduler,redis]"
+```
+
+```python
+from python_stdx.scheduler import IntervalSchedule, TaskScheduler, get_schedule_defs, get_task_defs, schedule, task
+from python_stdx.scheduler.store.sqlalchemy import SQLTaskStore
+from python_stdx.database import Database
+
+
+@schedule(IntervalSchedule(60))
+@task(name="jobs.refresh", timeout=30)
+async def refresh() -> None: ...
+
+
+database = Database("sqlite:///tasks.db", pool_size=5, max_overflow=5)
+store = SQLTaskStore(database, auto_migrate=True)
+await store.init()
+
+scheduler = TaskScheduler(store, get_task_defs(), get_schedule_defs())
+await scheduler.start()
+```
+
+See [the scheduler design and lifecycle](docs/scheduler.md) for the three task modes, store contracts, and shutdown behavior.
 
 ## License
 
