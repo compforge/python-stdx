@@ -57,6 +57,15 @@ wheels = [
 ]
 
 [[package]]
+name = "cachetools"
+version = "6.2.6"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/39/91/d9ae9a66b01102a18cd16db0cf4cd54187ffe10f0865cc80071a4104fbb3/cachetools-6.2.6.tar.gz", hash = "sha256:16c33e1f276b9a9c0b49ab5782d901e3ad3de0dd6da9bf9bcd29ac5672f2f9e6", size = 32363, upload-time = "2026-01-27T20:32:59.956Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/90/45/f458fa2c388e79dd9d8b9b0c99f1d31b568f27388f2fdba7bb66bbc0c6ed/cachetools-6.2.6-py3-none-any.whl", hash = "sha256:8c9717235b3c651603fff0076db52d6acbfd1b338b8ed50256092f7ce9c85bda", size = 11668, upload-time = "2026-01-27T20:32:58.527Z" },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -394,6 +403,9 @@ version = "0.1.0"
 source = { editable = "." }
 
 [package.optional-dependencies]
+cache = [
+    { name = "cachetools" },
+]
 database = [
     { name = "sqlalchemy" },
 ]
@@ -407,6 +419,7 @@ scheduler = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "cachetools" },
     { name = "croniter" },
     { name = "mypy" },
     { name = "opentelemetry-api" },
@@ -415,19 +428,22 @@ dev = [
     { name = "redis" },
     { name = "ruff" },
     { name = "sqlalchemy" },
+    { name = "types-cachetools" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "cachetools", marker = "extra == 'cache'", specifier = ">=5.5,<7.0" },
     { name = "croniter", marker = "extra == 'scheduler'", specifier = ">=2.0,<7.0" },
     { name = "opentelemetry-api", marker = "extra == 'scheduler'", specifier = ">=1.20,<2.0" },
     { name = "redis", marker = "extra == 'redis'", specifier = ">=5.0,<9.0" },
     { name = "sqlalchemy", marker = "extra == 'database'", specifier = ">=2.0,<3.0" },
 ]
-provides-extras = ["redis", "scheduler", "database"]
+provides-extras = ["cache", "redis", "scheduler", "database"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "cachetools", specifier = ">=5.5,<7.0" },
     { name = "croniter", specifier = ">=2.0,<7.0" },
     { name = "mypy", specifier = ">=1.11" },
     { name = "opentelemetry-api", specifier = ">=1.20,<2.0" },
@@ -436,6 +452,7 @@ dev = [
     { name = "redis", specifier = ">=5.0,<9.0" },
     { name = "ruff", specifier = ">=0.6" },
     { name = "sqlalchemy", specifier = ">=2.0,<3.0" },
+    { name = "types-cachetools", specifier = ">=5.5" },
 ]
 
 [[package]]
@@ -530,6 +547,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/0d/c9/f14fdf71bb8957e0c7e39db69bbdf12b5c80f4ef775fdfa127bf4e0d6760/sqlalchemy-2.0.51-cp314-cp314t-win32.whl", hash = "sha256:9161cfc9efce70d1715f47d6ff40f79c6778c00d53be4fbc09d70301e4b83ba7", size = 2151313, upload-time = "2026-06-15T16:03:39.127Z" },
     { url = "https://files.pythonhosted.org/packages/6a/c6/673e618e6f4f297e126d9b56ea2f6478708f6c1af4e3223835c22e2c3697/sqlalchemy-2.0.51-cp314-cp314t-win_amd64.whl", hash = "sha256:159bb6ba32059f57ad7375a8f50d844dd2f19d14954ecf820cd33e20debd46b2", size = 2186280, upload-time = "2026-06-15T16:03:40.569Z" },
     { url = "https://files.pythonhosted.org/packages/e2/22/dbf013a12ec759e54a34a119e9e217435b3f71b2dd5c61a7ade0a25dae87/sqlalchemy-2.0.51-py3-none-any.whl", hash = "sha256:bb024d8b621d0be75f4f44ecc7c950450026e76d66dc8f791bb5331d7fed59d5", size = 1944334, upload-time = "2026-06-15T16:09:22.418Z" },
+]
+
+[[package]]
+name = "types-cachetools"
+version = "7.0.0.20260713"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/34/64/66d7efdb36ecf6826aca5415e59fe2df96e97d24157147e53acfbe8dda11/types_cachetools-7.0.0.20260713.tar.gz", hash = "sha256:f1acf079e9c66a81e096a897ef0b261a82117cf856834e37b4bd0c9a116a076a", size = 10199, upload-time = "2026-07-13T05:22:21.845Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0e/c7/d3525c9dbdc1be7786bad46655ef051b6e7993f656d304719ec40079c91c/types_cachetools-7.0.0.20260713-py3-none-any.whl", hash = "sha256:6db9bcc7a3840d39e91c04117d85a9d0937eacc9d14d12a873e2b01a2d24a71d", size = 9615, upload-time = "2026-07-13T05:22:20.76Z" },
 ]
 
 [[package]]

@@ -6,8 +6,10 @@ It is organized by capability instead of growing a generic `common` or `utils` p
 
 ## Included capabilities
 
+- `python_stdx.iterables`, `mappings`, and `text`: focused, dependency-free helpers that complement the standard library.
 - `python_stdx.asyncio.EventLoopWatchdog`: observes event-loop progress from an independent OS thread and reports stalls and recovery.
 - `python_stdx.redis.RedisConnector`: creates one native async client for standalone, Sentinel, or Cluster Redis.
+- `python_stdx.cache`: tagged invalidation and coordinated loading with in-process and Redis backends.
 - `python_stdx.database.Database`: owns a synchronous SQLAlchemy engine and explicit session/transaction lifecycles.
 - `python_stdx.scheduler.TaskScheduler`: runs scheduled, one-shot, and triggered tasks through a pluggable distributed store.
 
@@ -15,6 +17,16 @@ It is organized by capability instead of growing a generic `common` or `utils` p
 
 ```bash
 python -m pip install python-stdx
+```
+
+## Utility functions
+
+Utilities are grouped by the value they operate on instead of living in a generic `utils` package:
+
+```python
+from python_stdx.iterables import first_where, group_by, unique
+from python_stdx.mappings import get_in, map_values, without_keys
+from python_stdx.text import byte_length, normalize_whitespace, truncate_middle
 ```
 
 ## Event-loop watchdog
@@ -60,6 +72,36 @@ redis = await connector.connect()
 await redis.ping()
 await connector.aclose()
 ```
+
+## Caches
+
+The in-process tagged cache has one optional dependency:
+
+```bash
+python -m pip install "python-stdx[cache]"
+```
+
+```python
+from python_stdx.cache.tagged.memory import MemoryTaggedCache
+
+cache = MemoryTaggedCache[str](max_size=1_000, ttl=300)
+await cache.set("user:42", "Ada", tags=["users"])
+await cache.invalidate_tag("users")
+```
+
+Redis cache backends use the native client returned by `RedisConnector` and are installed through the existing `redis`
+extra:
+
+```python
+from python_stdx.cache.loading.redis import RedisLoadingCache
+from python_stdx.cache.tagged.redis import RedisTaggedCache
+
+tagged = RedisTaggedCache(redis, namespace="profiles")
+loading = RedisLoadingCache(redis, namespace="profile-loader")
+profile = await loading.get_or_load("42", load_profile)
+```
+
+See [the cache model](docs/cache.md) for tagged invalidation and coordinated loading semantics.
 
 ## Database lifecycle
 
