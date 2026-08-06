@@ -58,3 +58,7 @@ redis = await connector.connect()
 await redis.ping()
 await connector.aclose()
 ```
+
+## License
+
+python-stdx is available under the [MIT License](LICENSE).
