@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import json
+import logging
 import time
 import uuid
 from collections.abc import Callable
@@ -10,6 +11,27 @@ from typing import Generic, cast
 
 from python_stdx.cache.loading._base import Key, Loader, LoadingCache, Value
 from python_stdx.redis import RedisClient
+
+_logger = logging.getLogger(__name__)
+_FAILED_PREFIX = "__FAILED__:"
+_IN_PROGRESS_PREFIX = "__IN_PROGRESS__:"
+
+_ACQUIRE_LEASE = """
+local current = redis.call('GET', KEYS[1])
+if not current or string.sub(current, 1, string.len(ARGV[1])) == ARGV[1] then
+    redis.call('SET', KEYS[1], ARGV[2], 'PX', ARGV[3])
+    return 1
+end
+return 0
+"""
+
+_PUBLISH_FAILURE = """
+if redis.call('GET', KEYS[1]) ~= ARGV[1] then
+    return 0
+end
+redis.call('SET', KEYS[1], ARGV[2], 'PX', ARGV[3])
+return 1
+"""
 
 _RELEASE_LEASE = """
 if redis.call('GET', KEYS[1]) == ARGV[1] then
@@ -42,12 +64,20 @@ def _text(value: str | bytes) -> str:
     return value.decode("utf-8") if isinstance(value, bytes) else value
 
 
+def _error_dumps(error: Exception) -> str:
+    # Generic exception text can contain credentials or request bodies. Applications
+    # may supply a serializer for their own public error code/message contract.
+    return _json_dumps({"code": type(error).__name__})
+
+
 class RedisLoadingCache(LoadingCache[Key, Value], Generic[Key, Value]):
     """A Guava-style loading cache coordinated through Redis leases.
 
     Distinct keys load concurrently. Callers for the same missing key wait for
-    the lease owner and reuse its value. A loader timeout releases the lease so
-    another caller can retry.
+    the lease owner and reuse its value. Failure marks the lease as immediately
+    reclaimable; only the failing caller receives the original exception. A
+    follower competes for a new lease and runs its own loader. Failure markers
+    use the lease TTL for cleanup, never as a retry delay or cached result.
     """
 
     def __init__(
@@ -63,6 +93,7 @@ class RedisLoadingCache(LoadingCache[Key, Value], Generic[Key, Value]):
         key_dumps: Callable[[Key], str] = str,
         value_dumps: Callable[[Value], str] | None = None,
         value_loads: Callable[[str], Value] | None = None,
+        error_dumps: Callable[[Exception], str] = _error_dumps,
     ) -> None:
         if not namespace.strip():
             raise ValueError("namespace must not be empty")
@@ -80,6 +111,7 @@ class RedisLoadingCache(LoadingCache[Key, Value], Generic[Key, Value]):
         self._wait_timeout = wait_timeout
         self._poll_interval = poll_interval
         self._key_dumps = key_dumps
+        self._error_dumps = error_dumps
         self._value_dumps = value_dumps or cast(Callable[[Value], str], _json_dumps)
         self._value_loads = value_loads or cast(Callable[[str], Value], _json_loads)
 
@@ -103,8 +135,10 @@ class RedisLoadingCache(LoadingCache[Key, Value], Generic[Key, Value]):
             if cached is not None:
                 return cached
 
-            token = uuid.uuid4().hex
-            acquired = await self._redis.set(lease_key, token, nx=True, px=self._lease_ttl_ms)
+            token = _IN_PROGRESS_PREFIX + uuid.uuid4().hex
+            # Checking a failed marker and replacing it must be one atomic operation:
+            # otherwise several followers could all believe they own the same load.
+            acquired = await self._redis.eval(_ACQUIRE_LEASE, 1, lease_key, _FAILED_PREFIX, token, self._lease_ttl_ms)
             if acquired:
                 # A writer may have populated the value between the miss and lease acquisition.
                 cached = await self.get(key)
@@ -129,12 +163,25 @@ class RedisLoadingCache(LoadingCache[Key, Value], Generic[Key, Value]):
         try:
             async with asyncio.timeout(self._load_timeout):
                 value = await loader(key)
-            if value is None:
-                return None
-            await self._redis.eval(_PUBLISH_VALUE, 2, lease_key, value_key, token, self._value_dumps(value), self._ttl)
-            return value
-        finally:
+            if value is not None:
+                await self._redis.eval(
+                    _PUBLISH_VALUE, 2, lease_key, value_key, token, self._value_dumps(value), self._ttl
+                )
+        except BaseException as error:
+            try:
+                if isinstance(error, Exception):
+                    # Ownership checks keep an expired loader from damaging a successor.
+                    failure = _FAILED_PREFIX + self._error_dumps(error)
+                    await self._redis.eval(_PUBLISH_FAILURE, 1, lease_key, token, failure, self._lease_ttl_ms)
+                else:
+                    await self._release_lease(lease_key, token)
+            except Exception:
+                # Cleanup/serialization failure must not hide the original loader error.
+                _logger.warning("Could not update failed cache lease in namespace %s", self._namespace)
+            raise
+        if value is None:
             await self._release_lease(lease_key, token)
+        return value
 
     async def _release_lease(self, lease_key: str, token: str) -> None:
         await self._redis.eval(_RELEASE_LEASE, 1, lease_key, token)

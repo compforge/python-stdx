@@ -2,11 +2,10 @@ import asyncio
 from typing import cast
 
 import pytest
+from fakeredis.aioredis import FakeRedis
 
 from python_stdx.cache.loading.redis import RedisLoadingCache
 from python_stdx.redis import RedisClient
-
-from .fake_redis import FakeRedis
 
 
 def make_cache(redis: FakeRedis) -> RedisLoadingCache[str, str]:
