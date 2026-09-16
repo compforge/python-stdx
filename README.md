@@ -114,7 +114,12 @@ loading = RedisLoadingCache(redis, namespace="profile-loader")
 profile = await loading.get_or_load("42", load_profile)
 ```
 
-See [the cache model](docs/cache.md) for tagged invalidation and coordinated loading semantics.
+`RedisLoadingCache` provides queued loading: callers for the same missing key share the leader's result. If the leader
+raises, it publishes a failure marker and re-raises; followers immediately compete to load again. Failures are never
+returned as cached values, so a repaired backend can succeed on the next attempt. Use `error_dumps` to store safe,
+application-specific failure diagnostics without coupling the cache to your exception classes.
+
+See [the cache model](docs/cache.md) for tagged invalidation, failure handoff, and loading timeout semantics.
 
 ## Database lifecycle
 
