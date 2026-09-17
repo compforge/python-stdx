@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
+from math import isfinite
 from typing import Literal
 
 
@@ -38,6 +39,7 @@ class RedisConnectionConfig:
     database: int = 0
     tls: bool = False
     max_connections: int = 20
+    max_long_connections: int | None = None
     connect_timeout: float = 5.0
     command_timeout: float = 5.0
     health_check_interval: int = 30
@@ -61,6 +63,10 @@ class RedisConnectionConfig:
             raise ValueError("database must be non-negative")
         if self.max_connections <= 0:
             raise ValueError("max_connections must be positive")
+        if self.max_long_connections is None:
+            object.__setattr__(self, "max_long_connections", self.max_connections)
+        elif self.max_long_connections <= 0:
+            raise ValueError("max_long_connections must be positive")
         for name in ("connect_timeout", "command_timeout", "health_check_interval"):
-            if getattr(self, name) <= 0:
+            if not isfinite(getattr(self, name)) or getattr(self, name) <= 0:
                 raise ValueError(f"{name} must be positive")
