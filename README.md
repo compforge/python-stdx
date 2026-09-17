@@ -8,7 +8,7 @@ It is organized by capability instead of growing a generic `common` or `utils` p
 
 - `python_stdx.iterables`, `mappings`, and `text`: focused, dependency-free helpers that complement the standard library.
 - `python_stdx.asyncio`: manages async stream lifecycles and observes event-loop stalls from an independent OS thread.
-- `python_stdx.redis.RedisConnector`: creates one native async client for standalone, Sentinel, or Cluster Redis.
+- `python_stdx.redis.RedisConnector`: provides one async command API with automatic pool isolation for standalone, Sentinel, and Cluster Redis.
 - `python_stdx.cache`: tagged invalidation and coordinated loading with in-process and Redis backends.
 - `python_stdx.database.Database`: owns a synchronous SQLAlchemy engine and explicit session/transaction lifecycles.
 - `python_stdx.scheduler.TaskScheduler`: runs scheduled, one-shot, and triggered tasks through a pluggable distributed store.
@@ -66,7 +66,11 @@ Redis support is optional:
 python -m pip install "python-stdx[redis]"
 ```
 
-`python-stdx` configures the official redis-py client instead of wrapping its command API. `RedisConnector` hides standalone, Sentinel, and Cluster construction behind one lifecycle and returns a native client with the full redis-py command surface.
+`RedisConnector` returns one shared async client. Commands such as `GET`, `SET`, and `PUBLISH` use ordinary capacity;
+blocking reads and subscriptions automatically use separate capacity. Application code uses the same methods for
+standalone, Sentinel, and Cluster Redis and never chooses a pool.
+
+Redis support requires redis-py 8.1 or newer within major version 8.
 
 ```python
 from python_stdx.redis import RedisConnectionConfig, RedisConnector, RedisEndpoint, RedisTopology
@@ -76,15 +80,26 @@ connector = RedisConnector(
         topology=RedisTopology.STANDALONE,
         endpoints=(RedisEndpoint("localhost", 6379),),
         max_connections=20,
+        # Optional: defaults to max_connections when omitted.
+        max_long_connections=100,
         connect_timeout=5.0,
         command_timeout=5.0,
     )
 )
 
-redis = await connector.connect()
-await redis.ping()
-await connector.aclose()
+async with connector as redis:
+    await redis.set("status", "ready")
+    async with redis.pubsub() as updates:
+        await updates.subscribe("updates")
+        await updates.get_message(timeout=1)  # subscription acknowledgement
+        await redis.publish("updates", "hello")  # ordinary capacity remains available
+        message = await updates.get_message(timeout=1)
 ```
+
+Pools open sockets on demand. Closing the connector cancels active I/O and closes owned subscriptions and pools;
+a closed connector cannot reopen. `RedisPoolExhaustedError` distinguishes capacity exhaustion from transport failures.
+
+See [Redis routing and lifecycle](docs/redis.md) for batching, timeouts, and Cluster constraints.
 
 ## Caches
 
@@ -102,7 +117,7 @@ await cache.set("user:42", "Ada", tags=["users"])
 await cache.invalidate_tag("users")
 ```
 
-Redis cache backends use the native client returned by `RedisConnector` and are installed through the existing `redis`
+Redis cache backends use the shared client returned by `RedisConnector` and are installed through the existing `redis`
 extra:
 
 ```python
