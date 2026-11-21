@@ -16,6 +16,14 @@ The Redis backend records the tag generations observed when an entry is written.
 their current values; tag and namespace invalidation only increment a generation, while stale entries disappear through
 their normal TTL.
 
+The in-process loading backend stores completed values in a bounded LRU cache with a TTL in seconds.
+Use one instance per event loop. `get(key)` reads a completed value immediately. With `get_or_load(key, loader)`,
+the first caller for a missing key runs its loader. Callers already waiting for that load share its successful
+result. If the owner raises, is cancelled, or returns `None`, a waiter can try its own loader. Cancelling a
+waiter leaves the owner running. A concurrent `set` takes precedence in storage while callers joined to the
+original load receive its result. Loaders for the same key must produce interchangeable values and should
+bound their own I/O. A loader must avoid waiting on a load it already owns, including through a dependency cycle.
+
 The Redis loading backend stores values and short-lived load leases under keys in the same Redis Cluster slot. One caller
 owns the lease and invokes the loader. Other callers wait for its value, while different keys continue loading
 independently. This provides queued loading: a waiting caller reuses the owner's successful result, or competes to
