@@ -103,7 +103,7 @@ See [Redis routing and lifecycle](docs/redis.md) for batching, timeouts, and Clu
 
 ## Caches
 
-The in-process tagged cache has one optional dependency:
+Install the in-process cache backends with the cache extra:
 
 ```bash
 python -m pip install "python-stdx[cache]"
@@ -115,6 +115,15 @@ from python_stdx.cache.tagged.memory import MemoryTaggedCache
 cache = MemoryTaggedCache[str](max_size=1_000, ttl=300)
 await cache.set("user:42", "Ada", tags=["users"])
 await cache.invalidate_tag("users")
+```
+
+Use a loading cache when concurrent callers may need to fetch the same missing key:
+
+```python
+from python_stdx.cache.loading.memory import MemoryLoadingCache
+
+profiles = MemoryLoadingCache[str, str](max_size=1_000, ttl=300)
+profile = await profiles.get_or_load("42", load_profile)
 ```
 
 Redis cache backends use the shared client returned by `RedisConnector` and are installed through the existing `redis`
